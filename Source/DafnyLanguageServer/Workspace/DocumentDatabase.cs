@@ -146,12 +146,19 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
         oldDocument.VerificationTree.SetObsolete();
       var migratedVerificationTree =
         relocator.RelocateVerificationTree(oldVerificationTree, documentChange, CancellationToken.None);
+
+      var migratedLastTouchedPositions =
+        relocator.RelocatePositions(oldDocument.LastTouchedVerificationTreePositions, documentChange, CancellationToken.None);
       try {
         var newDocument = await documentLoader.LoadAsync(updatedText, cancellationToken);
+        foreach (var change in documentChange.ContentChanges) {
+          newDocument.LastChange = change.Range;
+        }
         if (newDocument.SymbolTable.Resolved) {
           return WithRealtimeDiagnosticsPublished(newDocument with {
             OldVerificationDiagnostics = migratedVerificationDiagnotics,
-            VerificationTree = migratedVerificationTree
+            VerificationTree = migratedVerificationTree,
+            LastTouchedVerificationTreePositions = migratedLastTouchedPositions
           });
         }
         // The document loader failed to create a new symbol table. Since we'd still like to provide

@@ -57,6 +57,12 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
       Regex.Matches(Text.Text, "\r?\n").Count + 1
     );
 
+    // List of last 5 top-level touched verification tree positions
+    public List<Position> LastTouchedVerificationTreePositions { get; init; } = new();
+
+    // Used to prioritize verification to one method and its dependencies
+    public Range? LastChange { get; set; } = null;
+
     /// <summary>
     /// Checks if the given document uri is pointing to this dafny document.
     /// </summary>
