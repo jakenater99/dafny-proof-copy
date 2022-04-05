@@ -320,6 +320,7 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
         // (same child number, same file and same position)
         foreach (var methodTree in document.VerificationTree.Children) {
           methodTree.ResetNewChildren();
+          methodTree.ResourceCount = 0;
         }
 
         foreach (var implementation in implementations) {
@@ -392,6 +393,7 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
       private void ReportMethodsBeingVerified(string extra = "") {
         var pending = document.VerificationTree.Children
           .Where(diagnostic => diagnostic.Started && !diagnostic.Finished)
+          .OrderBy(diagnostic => diagnostic.StartTime)
           .Select(diagnostic => diagnostic.DisplayName)
           .ToList();
         var total = document.VerificationTree.Children.Count();
@@ -449,6 +451,9 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
         } else {
           lock (LockProcessing) {
             implementationNode.Stop();
+            implementationNode.ResourceCount = verificationResult.ResourceCount;
+
+            targetMethodNode.ResourceCount += verificationResult.ResourceCount;
             var finalOutcome = verificationResult.Outcome switch {
               ConditionGeneration.Outcome.Correct => VerificationStatus.Verified,
               _ => VerificationStatus.Error
@@ -497,7 +502,11 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
             result.ComputePerAssertOutcomes(out var perAssertOutcome, out var perAssertCounterExample);
 
             var assertionBatchIndex = implementationNode.GetNewAssertionBatchCount();
-            implementationNode.IncreaseNewAssertionBatchCount();
+            var assertionBatchTime = (int)result.runTime.TotalMilliseconds;
+            var assertionBatchResourceCount = result.resourceCount;
+            // TODO: Add assertion batches directly instead of indirectly
+            implementationNode.AddAssertionBatchTime(assertionBatchTime);
+            implementationNode.AddAssertionBatchResourceCount(assertionBatchResourceCount);
 
             // Attaches the trace
             void AddChildOutcome(Counterexample? counterexample, AssertCmd assertCmd, IToken token,
@@ -534,9 +543,8 @@ namespace Microsoft.Dafny.LanguageServer.Workspace {
                 StatusCurrent = CurrentStatus.Current,
                 RelatedRanges = relatedRanges.ToImmutableList(),
                 AssertionBatchIndex = assertionBatchIndex,
-                Started = true,
-                Finished = true
-              }.WithAssertionAndCounterExample(assertCmd, counterexample);
+              }.WithDuration(implementationNode.StartTime, assertionBatchTime)
+                .WithAssertionAndCounterExample(assertCmd, counterexample);
               // Add this diagnostics as the new one to display once the implementation is fully verified
               implementationNode.AddNewChild(nodeDiagnostic);
               // Update any previous pending "verifying" diagnostic as well so that they are updated in real-time
