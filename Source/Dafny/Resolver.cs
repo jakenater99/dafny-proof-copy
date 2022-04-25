@@ -9841,18 +9841,16 @@ namespace Microsoft.Dafny {
       Contract.Requires(dependencies != null);  // more expensive check: Contract.Requires(cce.NonNullElements(dependencies));
 
       var scc = dependencies.GetSCC(startingPoint);
-      // First, the simple case:  If any parameter of any inductive datatype in the SCC is of a codatatype type, then
-      // the whole SCC is incapable of providing the equality operation.  Also, if any parameter of any inductive datatype
-      // is a ghost, then the whole SCC is incapable of providing the equality operation.
+      // First, the simple case:  If any parameter of any inductive datatype in the SCC is of non-equatable type, then
+      // the whole SCC is incapable of providing the equality operation.
       foreach (var dt in scc) {
         Contract.Assume(dt.EqualitySupport == IndDatatypeDecl.ES.NotYetComputed);
         foreach (var ctor in dt.Ctors) {
           foreach (var arg in ctor.Formals) {
             var anotherIndDt = arg.Type.AsIndDatatype;
             if (arg.IsGhost ||
-                (anotherIndDt != null && anotherIndDt.EqualitySupport == IndDatatypeDecl.ES.Never) ||
-                arg.Type.IsCoDatatype ||
-                arg.Type.IsArrowType) {
+                (anotherIndDt is { EqualitySupport: IndDatatypeDecl.ES.Never }) ||
+                (anotherIndDt == null && !arg.Type.SupportsEquality)) {
               // arg.Type is known never to support equality
               // So, go around the entire SCC and record what we learnt
               foreach (var ddtt in scc) {
